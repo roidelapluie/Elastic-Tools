@@ -1,0 +1,6 @@
+production:
+  - host: log01.inuits.eu
+    port: 9200
+test:
+  - host: log07.inuits.eu
+    port: 9200
