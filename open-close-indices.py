@@ -24,17 +24,12 @@ import sys
 if (sys.version_info[0] < 3):
     raise Exception("Python 3 needed. Version found is " + str(sys.version_info[0]) + "." + str(sys.version_info[1]) + "." + str(sys.version_info[2]))
 
-# python modules
-import os
-
 # External modules
-from elasticsearch import Elasticsearch
 from docopt import docopt
-import yaml
 
 # Local helpers
 from elastic_utils import print_calendar, find_index_date, parse_cat_indices, parse_arguments,\
-                          close_index_by_name, open_index_by_name, print_legend
+                          close_index_by_name, open_index_by_name, print_legend, get_es_client
 
 def open_close_indices(client, arguments, opening=True):
     start, end = parse_arguments(arguments)
@@ -105,25 +100,8 @@ def print_status(client, arguments):
     print("Closed indices (with a date): %s" % closed_indices)
 
 def main():
-    # Parse arguments
     arguments = docopt(__doc__, version='0.1')
-
-    # Select client (test or prod)
-
-    if arguments['--config']:
-        config_file = arguments['--config']
-    else:
-        config_file = 'clusters.yaml'
-    if not os.path.isfile(config_file):
-        raise Exception('Configuration file not found')
-    if arguments['--cluster']:
-        cluster_name = arguments['--cluster']
-    else:
-        cluster_name = 'test'
-    clusters = yaml.load(open(config_file, 'r'))
-    if not cluster_name in clusters:
-        raise Exception('cluster %s not found in %s' % (cluster_name, config_file))
-    client = Elasticsearch(clusters[cluster_name], timeout=300)
+    client = get_es_client(arguments)
 
     # Dispatch to the actual action
     if arguments['<action>']  == 'status':

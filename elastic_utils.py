@@ -4,6 +4,9 @@ RED="1;41"
 GREEN="1;42"
 
 import re, calendar, datetime
+import yaml, os
+import time
+from elasticsearch import Elasticsearch
 
 def colorize_day(textcalendar, day, color):
     """
@@ -108,3 +111,35 @@ def close_index_by_name(client, index_name):
 def open_index_by_name(client, index_name):
     """Open an index"""
     client.indices.open(index_name)
+
+
+def get_cluster_config(arguments, option):
+    if arguments['--config']:
+        config_file = arguments['--config']
+    else:
+        config_file = 'clusters.yaml'
+    if not os.path.isfile(config_file):
+        raise Exception('Configuration file not found')
+    if arguments[option]:
+        cluster_name = arguments[option]
+    else:
+        cluster_name = 'test'
+    clusters = yaml.load(open(config_file, 'r'))
+    if not cluster_name in clusters:
+        raise Exception('cluster %s not found in %s' % (cluster_name, config_file))
+    return clusters[cluster_name]
+
+def get_es_client(arguments, option='--cluster'):
+    config = get_cluster_config(arguments, option)
+    return Elasticsearch(config, timeout=300)
+
+def wait_for_yellow_index(client, index):
+    while time.sleep(1):
+        indices = client.cat.indices()
+        for line in indices.split('\n'):
+            fields = line.split()
+            if len(fields) >= 3:
+                if fields[1] == 'open' and fields[0] in ('yellow', 'green') and fields[2] == index:
+                    break
+
+
