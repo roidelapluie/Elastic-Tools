@@ -14,6 +14,10 @@ also allows you to see the days with open/closed indices.
 
 Manage the number of replicas
 
+## find-mapping-conflicts.py
+
+Find Mappings Conflicts
+
 # License
 
 This work is licensed under the GPL-2.0 license.

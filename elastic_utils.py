@@ -8,6 +8,8 @@ import yaml, os
 import time
 from elasticsearch import Elasticsearch
 
+from getpass import getpass
+
 def colorize_day(textcalendar, day, color):
     """
     Takes a calendar, a day number and a colors
@@ -19,6 +21,13 @@ def colorize_day(textcalendar, day, color):
         regex = r"\b(%s)\b" % day
 
     return re.sub(regex, "\x1b[%sm\\1\x1b[0m" % color,  textcalendar)
+
+def colorize(text, color):
+    """
+    Takes a calendar, a day number and a colors
+    and returns the calendar with the day in such a color.
+    """
+    return "\x1b[%sm%s\x1b[0m" % (color,  text)
 
 
 def make_calendar(year, month, opened, closed):
@@ -39,15 +48,23 @@ def make_calendar(year, month, opened, closed):
             textcalendar = colorize_day(textcalendar, d, RED)
     return textcalendar
 
-def find_index_date(index_name):
+def find_index_dates(index_name):
     """
     Look inside an index name for a date
     """
-    match = re.search(r'\d{4}\.\d{2}\.\d{2}', index_name)
-    if match:
-        return datetime.datetime.strptime(match.group(), '%Y.%m.%d').date()
+    day_match = re.search(r'\d{4}\.\d{2}\.\d{2}$', index_name)
+    week_match = re.search(r'\d{4}\.\d{2}$', index_name)
+    if day_match:
+        return [datetime.datetime.strptime(day_match.group(), '%Y.%m.%d').date()]
+    elif week_match:
+        orig_date = datetime.datetime.strptime(week_match.group() + '.1', '%Y.%W.%w').date()
+        days = []
+        for x in range(0,7):
+            dow = orig_date + datetime.timedelta(days=x)
+            days.append(dow)
+        return days
     else:
-        return None
+        return []
 
 def print_calendar(*args):
     """
@@ -127,11 +144,23 @@ def get_cluster_config(arguments, option):
     clusters = yaml.load(open(config_file, 'r'))
     if not cluster_name in clusters:
         raise Exception('cluster %s not found in %s' % (cluster_name, config_file))
-    return clusters[cluster_name]
+    if '--username' in arguments and arguments['--username']:
+        u = arguments['--username']
+        p = getpass()
+    else:
+        return clusters[cluster_name]
+    results = []
+    for config in clusters[cluster_name]:
+        config['http_auth'] = (u,p)
+        results.append(config)
+    return results
 
 def get_es_client(arguments, option='--cluster'):
     config = get_cluster_config(arguments, option)
     return Elasticsearch(config, timeout=300)
+
+def get_index_mapping(client, index):
+    return client.indices.get_mapping(index)
 
 def wait_for_yellow_index(client, index):
     while time.sleep(1):

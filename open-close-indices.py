@@ -3,20 +3,21 @@
 """open-close-indexes
 
 Usage:
-    open-close-indexes.py <action> [--start-date=STARTDATE] [--end-date=ENDDATE] [--config=CONFIG_FILE] [--cluster=CLUSTER] [--help]
+    open-close-indices.py <action> [--start-date=STARTDATE] [--end-date=ENDDATE] [--config=CONFIG_FILE] [--cluster=CLUSTER] [--username=USERNAME] [--help]
 
 Options:
-    action: status, close or open
-    --start-date: select indexes from that date (dd-mm-YYYY)
-    --start-date: select indexes until that date (dd-mm-YYYY)
-    --cluster: name of the cluster to test
-    --config: configuration file to use (see clusters.yaml.example)
+    action status, close or open
+    --start-date select indexes from that date (dd-mm-YYYY)
+    --end-date select indexes until that date (dd-mm-YYYY)
+    --cluster name of the cluster to test
+    --config configuration file to use (see clusters.yaml.example)
+    --username username
 
 Examples:
-    open-close-indexes.py status --cluster=production
-    open-close-indexes.py close --end-date=31-03-2016 --cluster=production
-    open-close-indexes.py open --cluster=test
-    open-close-indexes.py close --end-date=$(date +%d-%m-%Y -d '31 days ago') --cluster=production
+    open-close-indices.py status --cluster=production
+    open-close-indices.py close --end-date=31-03-2016 --cluster=production
+    open-close-indices.py open --cluster=test
+    open-close-indices.py close --end-date=$(date +%d-%m-%Y -d '31 days ago') --cluster=production
 """
 
 # Test for Python 3 presence
@@ -28,7 +29,7 @@ if (sys.version_info[0] < 3):
 from docopt import docopt
 
 # Local helpers
-from elastic_utils import print_calendar, find_index_date, parse_cat_indices, parse_arguments,\
+from elastic_utils import print_calendar, find_index_dates, parse_cat_indices, parse_arguments,\
                           close_index_by_name, open_index_by_name, print_legend, get_es_client
 
 def open_close_indices(client, arguments, opening=True):
@@ -39,14 +40,14 @@ def open_close_indices(client, arguments, opening=True):
     indices = parse_cat_indices(client.cat.indices())
     todo = []
     for index_name, closed in indices:
-        date = find_index_date(index_name)
-        if not date or not index_name:
+        dates = find_index_dates(index_name)
+        if dates == [] or not index_name:
             continue
-        if date and start and date < start:
+        if start and min(dates) < start:
             continue
-        if date and end and date > end:
+        if end and max(dates) > end:
             continue
-        if date and closed == opening:
+        if closed == opening:
             todo.append(index_name)
     n=0
     m=len(todo)
@@ -70,18 +71,20 @@ def print_status(client, arguments):
     closed_indices = 0
     start, end = parse_arguments(arguments)
     for index_name, closed in parse_cat_indices(client.cat.indices()):
-        date = find_index_date(index_name)
-        if date and start and date < start:
+        dates = find_index_dates(index_name)
+        if dates == [] or not index_name:
             continue
-        if date and end and date > end:
+        if start and min(dates) < start:
             continue
-        if date:
+        if end and max(dates) > end:
+            continue
+        if dates != []:
             if closed:
                 closed_indices += 1
-                closed_days.add(date)
+                closed_days |= set(dates)
             else:
                 open_indices += 1
-                open_days.add(date)
+                open_days |= set(dates)
     for day in open_days | closed_days:
         key = '%s-%s' % (day.year, day.month)
         if key not in results:
