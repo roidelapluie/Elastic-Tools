@@ -18,6 +18,10 @@ Manage the number of replicas
 
 Find Mappings Conflicts
 
+## fix-mapping.py
+
+Fix mapping conflicts
+
 # License
 
 This work is licensed under the GPL-2.0 license.

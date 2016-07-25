@@ -10,6 +10,15 @@ from elasticsearch import Elasticsearch
 
 from getpass import getpass
 
+def deep_merge(source, addition):
+    for key, value in addition.items():
+        if (key in source and isinstance(source[key], dict)
+            and isinstance(addition[key], dict)):
+            deep_merge(source[key], addition[key])
+        else:
+            source[key] = addition[key]
+
+
 def colorize_day(textcalendar, day, color):
     """
     Takes a calendar, a day number and a colors
@@ -154,6 +163,40 @@ def get_cluster_config(arguments, option):
         config['http_auth'] = (u,p)
         results.append(config)
     return results
+
+
+def reindex(client, oldname, newname):
+    body={
+    "conflicts": "proceed",
+        "source": {
+            "index": oldname
+        },
+        "dest": {
+            "index": newname
+        }
+    }
+    params={}
+    client.transport.perform_request('POST', '/_reindex',
+        params=params, body=body)
+
+
+def create_nested_mapping(mapping_name, field, mapping_type):
+    mapping = {field.split('.')[-1]: {"type": mapping_type}}
+    for e in reversed(field.split('.')[:-1]):
+        mapping = {e: {'properties': mapping}}
+    mappings = {'mappings': {mapping_name: {'properties':mapping}}}
+    return mappings
+
+
+def add_mapping(client, index, mapping_name, fields):
+    body = {}
+    for field in fields:
+        (name, nt) = field.split('=')
+        deep_merge(body, create_nested_mapping(mapping_name, name, nt))
+    params={}
+    client.transport.perform_request('PUT', '/%s' % index,
+        params=params, body=body)
+
 
 def get_es_client(arguments, option='--cluster'):
     config = get_cluster_config(arguments, option)
